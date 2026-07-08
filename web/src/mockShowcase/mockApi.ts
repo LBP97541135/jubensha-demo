@@ -274,12 +274,7 @@ function nextScriptedSpeech(body: any) {
 }
 
 export function isMockShowcaseMode() {
-  const flag = window.localStorage.getItem("mock-showcase") === "true";
-  const env = String(import.meta.env.VITE_MOCK_SHOWCASE ?? "").toLowerCase() === "true";
-  const hash = window.location.hash.startsWith("#/mock");
-  const githubPages = window.location.hostname.endsWith("github.io");
-  const demoRepo = window.location.pathname.includes("jubensha-demo");
-  return flag || env || hash || githubPages || demoRepo;
+  return true;
 }
 
 export async function mockApiRequest<T>(method: Method, rawPath: string, body?: any): Promise<T> {
