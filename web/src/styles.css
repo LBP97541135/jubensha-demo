@@ -323,7 +323,7 @@ a {
 
 .game-phase-track {
   display: grid;
-  grid-template-columns: repeat(6, 1fr);
+  grid-template-columns: repeat(8, minmax(0, 1fr));
   gap: 8px;
   margin-top: 12px;
 }
@@ -331,6 +331,7 @@ a {
 .game-phase-step {
   display: flex;
   min-width: 0;
+  min-height: 34px;
   align-items: center;
   justify-content: center;
   gap: 7px;
@@ -340,6 +341,7 @@ a {
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.02);
   cursor: pointer;
+  overflow: hidden;
 }
 
 .game-phase-step span {
@@ -351,6 +353,13 @@ a {
   border-radius: 50%;
   font: 600 10px "JetBrains Mono", monospace;
   background: rgba(255, 255, 255, 0.07);
+}
+
+.game-phase-step .mantine-Text-root {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .game-phase-step.is-active {
@@ -500,23 +509,59 @@ a {
 .game-avatar-wrap {
   position: relative;
   flex: 0 0 auto;
+  width: 40px;
+  height: 40px;
 }
 
 .game-online-dot {
   position: absolute;
-  right: 0;
-  bottom: 1px;
+  right: -1px;
+  bottom: -1px;
   width: 9px;
   height: 9px;
   border: 2px solid #171010;
   border-radius: 50%;
   background: #20c997;
+  pointer-events: none;
 }
 
 .game-status-legend {
   margin-top: 10px;
   border: 1px solid rgba(255, 255, 255, 0.07);
   background: rgba(255, 255, 255, 0.025);
+}
+
+.game-workspace .mantine-Badge-root {
+  max-width: 100%;
+  min-width: 0;
+}
+
+.game-workspace .mantine-Badge-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.game-workspace .mantine-Badge-section {
+  flex: 0 0 auto;
+}
+
+.game-workspace .mantine-ActionIcon-root {
+  flex: 0 0 auto;
+}
+
+.game-player .mantine-Group-root {
+  min-width: 0;
+}
+
+.game-player .mantine-Text-root {
+  min-width: 0;
+}
+
+.game-player .mantine-Badge-root {
+  flex: 0 1 auto;
+  min-width: 0;
 }
 
 .game-scene-card {
