@@ -276,6 +276,44 @@ const defaultInitialEvents: PublicEvent[] = [
   { id: 1, type: "system", title: "阶段开始", text: "公共讨论已开启，所有发言按照队列顺序进行。" },
 ];
 
+const MOCK_INTRO_LINES: Record<string, string> = {
+  "周野": "我是周野，十二年前负责锈铁大道的门禁维护。那晚缺失的三分钟和我的终端有关，但删记录的人不一定是我。",
+  "顾沉": "我是顾沉，事故档案一直由我保管。档案确实缺页，可缺失并不代表我就是改写真相的人。",
+  "沈禾": "我是沈禾，调查记者。过去三年我收到七封匿名信，寄信人都在逼我回到这条锈铁大道。",
+  "周岚": "我是周岚，事故当晚在旧诊所值夜班。我见过一个拒绝登记的伤者，他出现的时间，正好卡在事故之后。",
+  "秦野": "我是秦野，旧厂区前工头。这里每条通道我都熟，但有些门不是工人能随便打开的。",
+  "林远": "我是林远，当年的夜班保安。我说过自己什么都没看见，可那不是完整的事实。",
+};
+
+const MOCK_DISCUSSION_LINES: Record<string, string[]> = {
+  "顾沉": [
+    "值班表上的涂改不该只看签名。真正要看的，是纸背那道维修终端压痕。它说明有人拿旧设备重新压过这张表。",
+    "如果你们认为我能单独改掉门禁，那就还缺一个问题：22:43 谁拿到了地下储物间的钥匙？",
+  ],
+  "沈禾": [
+    "匿名信里反复出现一句话：三分钟不是空白，是被折起来的证词。折断的访客卡正好证明有人在那段时间进出过。",
+    "我不急着指认凶手，但顾沉保管的档案、周野维护的终端、林远的巡逻记录必须放在同一条时间线上看。",
+  ],
+  "周岚": [
+    "22:45 来诊所的人手腕有金属划伤。如果坠亡已经发生，那这个伤者就不是死者，而是另一个从现场离开的人。",
+    "我当时没登记他的名字，是因为他威胁我别多问。现在想想，他更害怕的是我记住时间。",
+  ],
+  "秦野": [
+    "那把沾机油的钥匙不是一直在排水沟里。齿槽里的红色纤维很新，像是从档案袋封绳上刚刮下来的。",
+    "地下储物间的门很重，一个不熟悉厂区的人打不开得那么快。凶手至少知道旧钥匙放在哪里。",
+  ],
+  "林远": [
+    "我当晚确实听到过门响，方向是 103 室，不是宿舍门口。我说没看见，是因为我怕牵出自己离岗的事。",
+    "22:41 到 22:44，我的巡逻灯灭过一次。有人让我以为那只是跳闸，但现在看来是给门禁断电。",
+  ],
+};
+
+function mockLineForRole(lines: Record<string, string[]>, role: string, fallback: string) {
+  const options = lines[role] || [];
+  if (options.length === 0) return fallback;
+  return options[Math.floor(Math.random() * options.length)];
+}
+
 function formatTime(totalSeconds: number) {
   return `${String(Math.floor(totalSeconds / 60)).padStart(2, "0")}:${String(totalSeconds % 60).padStart(2, "0")}`;
 }
@@ -1406,6 +1444,25 @@ function GamePage() {
 
     agentSpeechStartedRef.current = speakerId;
 
+    if (isMockShowcaseMode()) {
+      const text = mockLineForRole(
+        MOCK_DISCUSSION_LINES,
+        agentPlayer.role,
+        `${agentPlayer.role}沉思片刻：我先把自己看到的时间点说清楚，22:43 的空白才是今晚最关键的裂缝。`,
+      );
+      addEvent({
+        type: "speech",
+        speaker: `${agentPlayer.role} · ${agentPlayer.name}`,
+        text,
+        tone: agentPlayer.color || "blue",
+      });
+      window.setTimeout(() => {
+        agentSpeechStartedRef.current = null;
+        onComplete?.();
+      }, 350);
+      return;
+    }
+
     const eventId = Date.now();
     const recentDiscussion = events
       .filter((e): e is Extract<PublicEvent, { type: "speech" | "evidence" }> =>
@@ -1602,7 +1659,11 @@ function GamePage() {
     } else {
       // 真人玩家 → 使用硬编码台词（优先按角色名查找，兼容动态角色选择）
       const resolvedRoleKey = ROLE_TO_INTRO_KEY[resolveRoleName(introPlayer.role)] || introPlayer.role;
-      const introText = INTRO_LINES[resolvedRoleKey] || INTRO_LINES[introPlayer.role] || INTRO_LINES[currentIntroId] || `我是${introPlayer.role}，${introPlayer.publicIdentity}。`;
+      const introText = (isMockShowcaseMode() ? MOCK_INTRO_LINES[introPlayer.role] : "")
+        || INTRO_LINES[resolvedRoleKey]
+        || INTRO_LINES[introPlayer.role]
+        || INTRO_LINES[currentIntroId]
+        || `我是${introPlayer.role}，${introPlayer.publicIdentity}。`;
       addEvent({
         type: "speech",
         speaker: introPlayer.name,

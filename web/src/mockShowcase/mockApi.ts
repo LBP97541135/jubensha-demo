@@ -303,7 +303,14 @@ export async function mockApiRequest<T>(method: Method, rawPath: string, body?: 
   }
 
   if (method === "GET" && parts[0] === "scripts" && parts[2] === "evidence-pool") {
-    return { evidences: evidencePool.map(asEvidence), evidence_pool: evidencePool.map(asEvidence) } as T;
+    const evidences = evidencePool.map(asEvidence);
+    return {
+      evidences,
+      evidence_pool: evidences,
+      all_evidences: evidences,
+      search_evidences: evidences.slice(1),
+      role_evidences: { 周野: evidences.slice(0, 1) },
+    } as T;
   }
 
   if (method === "GET" && parts[0] === "scripts" && parts[1]) {
