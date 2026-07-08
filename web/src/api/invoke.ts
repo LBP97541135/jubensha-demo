@@ -1,0 +1,609 @@
+/**
+ * @deprecated Legacy API module - use apiClient via sessions/skills/evidences API instead
+ * 
+ * This module contains deprecated /game/*, /evidence/*, /conversations/* endpoints.
+ * New frontend code should use the unified apiClient in api/client.ts and the
+ * specialized API modules (sessions.ts, skills.ts, evidences.ts, etc.).
+ * 
+ * Shared types have been extracted to api/legacy-types.ts.
+ * Assistant-related functions/types have been moved to api/assistantApi.ts.
+ * 
+ * Files still importing functions from this module:
+ * - pages/GamePage.tsx (invokeAI, invokeAIStream)
+ * 
+ * Files that now use proper API modules:
+ * - api/hooks.ts (getScript, listScripts from scripts.ts)
+ * - pages/AgentPanel.tsx (listAgents, listPersonas from agents.ts)
+ * - pages/EvolutionTimeline.compass.tsx (all imports from assistantApi.ts)
+ * 
+ * Files that import types from legacy-types.ts:
+ * - api/adapters.ts (BackendScript, EvidenceRecord)
+ * - api/hooks.ts (BackendScript)
+ * - pages/AgentPanel.tsx (AgentInfo, AgentPersona)
+ * - utils/gameCasting.ts (AgentInfo, AgentPersona)
+ */
+import { API_URL } from "../constants";
+import type { Actor, LLMMessage, SafeActor } from "../types";
+
+export class ApiError extends Error {
+  constructor(
+    message: string,
+    public readonly status: number,
+    public readonly detail?: unknown,
+  ) {
+    super(message);
+    this.name = "ApiError";
+  }
+}
+
+type QueryValue = string | number | boolean | null | undefined;
+
+function endpoint(path: string, query?: Record<string, QueryValue>) {
+  const url = new URL(`${API_URL}${path}`);
+  Object.entries(query || {}).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== "") {
+      url.searchParams.set(key, String(value));
+    }
+  });
+  return url.toString();
+}
+
+async function request<T>(
+  path: string,
+  options: RequestInit = {},
+  query?: Record<string, QueryValue>,
+): Promise<T> {
+  const requestUrl = endpoint(path, query);
+  let response: Response;
+  try {
+    response = await fetch(requestUrl, {
+      ...options,
+      headers: {
+        Accept: "application/json",
+        ...(options.body ? { "Content-Type": "application/json" } : {}),
+        ...options.headers,
+      },
+    });
+  } catch (error) {
+    throw new ApiError(
+      `无法连接后端 ${requestUrl}：${error instanceof Error ? error.message : String(error)}`,
+      0,
+      error,
+    );
+  }
+
+  const contentType = response.headers.get("content-type") || "";
+  const payload = contentType.includes("application/json")
+    ? await response.json()
+    : await response.text();
+
+  if (!response.ok) {
+    const detail =
+      payload && typeof payload === "object" && "detail" in payload
+        ? (payload as { detail: unknown }).detail
+        : payload;
+    throw new ApiError(
+      `${requestUrl} 返回 ${response.status}：${
+        typeof detail === "string" ? detail : JSON.stringify(detail)
+      }`,
+      response.status,
+      detail,
+    );
+  }
+  return payload as T;
+}
+
+const get = <T>(path: string, query?: Record<string, QueryValue>) =>
+  request<T>(path, {}, query);
+const post = <T>(path: string, body?: unknown, query?: Record<string, QueryValue>) =>
+  request<T>(path, { method: "POST", body: body === undefined ? undefined : JSON.stringify(body) }, query);
+const put = <T>(path: string, body: unknown) =>
+  request<T>(path, { method: "PUT", body: JSON.stringify(body) });
+const remove = <T>(path: string, body?: unknown) =>
+  request<T>(path, { method: "DELETE", body: body === undefined ? undefined : JSON.stringify(body) });
+
+export interface BackendScript {
+  id: string;
+  title: string;
+  description: string;
+  author: string;
+  version: string;
+  globalStory: string;
+  sourceType: string;
+  coverImage: string;
+  genre: string;
+  theme: string;
+  difficulty: string;
+  duration: number;
+  emotionLevel: number;
+  inferenceLevel: number;
+  horrorLevel: number;
+  playerCount: number;
+  fixedKiller: string;
+  characters: Array<Record<string, any>>;
+  evidences: Array<Record<string, any>>;
+  quiz: Array<Record<string, any>>;
+  settings: Record<string, any>;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface ApiEnvelope<T> {
+  success: boolean;
+  data?: T;
+  error?: {
+    code?: string;
+    message?: string;
+    details?: unknown;
+  };
+  message?: string;
+}
+
+function unwrapApiData<T>(payload: ApiEnvelope<T>): T {
+  if (!payload.success || payload.data === undefined) {
+    throw new ApiError(payload.error?.message || payload.message || "请求失败", 0, payload.error);
+  }
+  return payload.data;
+}
+
+export interface AgentInfo {
+  key: string;
+  name: string;
+  role: "dm" | "companion" | "assistant";
+  node_id: string;
+  registered: boolean;
+  model: string;
+  persona_key: string;
+}
+
+export interface AgentPersona {
+  id: string;
+  key: string;
+  name: string;
+  role: "dm" | "companion" | "assistant";
+  vibe: string;
+  style: string;
+  genius: string[];
+  personality: string[];
+  scriptTypes: string[];
+  activeLevel: string;
+  pace: string;
+  strengths: string[];
+  promptStyle: string;
+  fairness: string;
+  roleMatch: string;
+  reason: string;
+  rating: number;
+  historyCount: number;
+  recentTags: string[];
+}
+
+export interface EvidenceRecord {
+  id: string;
+  name: string;
+  basicDescription: string;
+  detailedDescription: string;
+  deepDescription: string;
+  image: string;
+  category: string;
+  discoveryState: string;
+  unlockLevel: number;
+  relatedActors: string[];
+  relatedEvidences: string[];
+  combinableWith: string[];
+  importance: string;
+  sessionId: string;
+  scriptId: string;
+  isNew: boolean;
+  hasUpdate: boolean;
+}
+
+export interface InvocationRequest {
+  globalStory: string;
+  actor: Actor;
+  sessionId: string;
+  detectiveName: string;
+  victimName: string;
+  allActors: SafeActor[];
+  chatMessages: LLMMessage[];
+  temperature: number;
+}
+
+export interface InvocationResponse {
+  original: string;
+  critique: string;
+  refined: string;
+  finalResponse: string;
+}
+
+function actorPayload(actor: Actor | SafeActor) {
+  return {
+    id: actor.id,
+    name: actor.name,
+    bio: actor.bio,
+    personality: actor.personality,
+    context: actor.context,
+    ...("secret" in actor ? { secret: actor.secret, violation: actor.violation } : {}),
+    image: actor.image,
+    is_victim: actor.isVictim,
+    is_killer: actor.isKiller,
+    is_assistant: actor.isAssistant,
+    is_player: actor.isPlayer,
+    is_partner: actor.isPartner,
+    role_type: actor.roleType,
+  };
+}
+
+function invocationPayload(req: InvocationRequest) {
+  return {
+    global_story: req.globalStory,
+    actor: actorPayload(req.actor),
+    session_id: req.sessionId,
+    detective_name: req.detectiveName,
+    victim_name: req.victimName,
+    all_actors: req.allActors.map(actorPayload),
+    chat_messages: req.chatMessages,
+    temperature: req.temperature,
+  };
+}
+
+export async function healthCheck() {
+  return get<Record<string, any>>("/health");
+}
+
+export async function invokeAI(req: InvocationRequest): Promise<InvocationResponse> {
+  const result = await post<Record<string, string>>("/invoke/", invocationPayload(req));
+  return {
+    original: result.original || "",
+    critique: result.critique || "",
+    refined: result.refined || "",
+    finalResponse: result.final_response || "",
+  };
+}
+
+export async function invokeAIStream(
+  req: InvocationRequest,
+  onChunk: (text: string) => void,
+  onDone: (final: string) => void,
+  onError?: (error: Error) => void,
+) {
+  try {
+    const response = await fetch(endpoint("/invoke/stream"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "text/event-stream" },
+      body: JSON.stringify(invocationPayload(req)),
+    });
+    if (!response.ok || !response.body) {
+      throw new ApiError(`Streaming request failed: ${response.status}`, response.status);
+    }
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    let final = "";
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const events = buffer.split("\n\n");
+      buffer = events.pop() || "";
+      for (const event of events) {
+        const line = event.split("\n").find((item) => item.startsWith("data:"));
+        if (!line) continue;
+        const data = JSON.parse(line.slice(5).trim());
+        if (data.type === "token") {
+          final += data.content || "";
+          onChunk(data.content || "");
+        } else if (data.type === "done") {
+          final = data.final || final;
+        } else if (data.type === "error") {
+          throw new Error(data.message || "Streaming request failed");
+        }
+      }
+    }
+    onDone(final);
+  } catch (error) {
+    try {
+      const fallback = await invokeAI(req);
+      const final =
+        fallback.finalResponse ||
+        fallback.refined ||
+        fallback.original ||
+        "本地模式已接管发言：当前流式接口不可用，我会基于公开信息继续推进。";
+      onChunk(final);
+      onDone(final);
+      return;
+    } catch (fallbackError) {
+      const normalizedError = fallbackError instanceof Error
+        ? fallbackError
+        : error instanceof Error
+          ? error
+          : new Error(String(error));
+      onError?.(normalizedError);
+      if (!onError) throw normalizedError;
+    }
+  }
+}
+
+export const listScripts = async () => {
+  const payload = await get<ApiEnvelope<{ scripts: BackendScript[] }>>("/scripts");
+  return unwrapApiData(payload).scripts;
+};
+export const getScript = async (scriptId: string) =>
+  unwrapApiData(await get<ApiEnvelope<{ script: BackendScript }>>(`/scripts/${scriptId}`)).script;
+
+export const registerAgent = (
+  role: string,
+  name: string,
+  model: string,
+  identityDoc = "",
+  constitution = "",
+) =>
+  post<Record<string, any>>("/agents/register", {
+    role,
+    name,
+    model,
+    identity_doc: identityDoc,
+    constitution,
+  });
+export const listAgents = async () => {
+  const data = unwrapApiData(await get<ApiEnvelope<{ agents: Array<Partial<AgentInfo> & Record<string, any>> }>>("/agents/list"));
+  return {
+    agents: (data.agents || []).map((agent) => ({
+      key: String(agent.key || agent.id || ""),
+      name: String(agent.name || agent.key || agent.id || ""),
+      role: (agent.role || "companion") as AgentInfo["role"],
+      node_id: String(agent.node_id || agent.external_ref || agent.id || ""),
+      registered: agent.registered ?? agent.status !== "inactive",
+      model: String(agent.model || ""),
+      persona_key: String(agent.persona_key || agent.persona_id || ""),
+    })),
+  };
+};
+export const heartbeatAgent = (agentKey: string) => post<Record<string, any>>(`/agents/heartbeat/${agentKey}`, {});
+export const evolveAgent = (agentKey: string, updateType: string, newContent: string, nodeId = "") =>
+  post<Record<string, any>>(`/agents/evolve/${agentKey}`, {
+    node_id: nodeId,
+    update_type: updateType,
+    new_content: newContent,
+  });
+export const initPersonas = async () =>
+  unwrapApiData(await post<ApiEnvelope<Record<string, any>>>("/agents/personas/init", {}));
+export const listPersonas = async (role?: string) =>
+  unwrapApiData(await get<ApiEnvelope<{ personas: AgentPersona[] }>>("/agents/personas", { role })).personas;
+export const getPersona = async (personaKey: string) =>
+  unwrapApiData(await get<ApiEnvelope<AgentPersona>>(`/agents/personas/${personaKey}`));
+export const loadPersona = (agentKey: string, personaKey: string) =>
+  post<ApiEnvelope<Record<string, any>>>("/agents/personas/load", { agent_key: agentKey, persona_key: personaKey });
+export const autoMatchPersonas = (scriptGenre: string, difficulty: string) =>
+  post<ApiEnvelope<Record<string, any>>>("/agents/personas/auto-match", {
+    script_genre: scriptGenre,
+    difficulty,
+  });
+
+export const createGameSession = async (scriptId: string, topic: string, playerCharacterName?: string) => {
+  const result = await post<{ session_id: string; participants: string[]; status: string }>(
+    "/game/create-session",
+    { script_id: scriptId, topic, player_character_name: playerCharacterName || "" },
+  );
+  return { sessionId: result.session_id, participants: result.participants, status: result.status };
+};
+export const applyGameCast = (
+  sessionId: string,
+  cast: Array<{ type: string; role: string; agentKey?: string }>,
+  playerCharacterName = "",
+) =>
+  post<{ success: boolean; agents: number }>(`/game/cast/${sessionId}`, {
+    cast,
+    player_character_name: playerCharacterName,
+  });
+export const getGamePhase = (sessionId: string) => get<Record<string, any>>(`/game/phase/${sessionId}`);
+export const advanceGamePhase = (sessionId: string) => post<Record<string, any>>(`/game/phase/${sessionId}/advance`);
+export const forceGamePhase = (
+  sessionId: string,
+  phase: string,
+  frontendPhaseIndex?: number,
+) =>
+  post<Record<string, any>>(`/game/phase/${sessionId}/force`, {
+    phase,
+    frontend_phase_index: frontendPhaseIndex,
+  });
+export const submitGameVote = (sessionId: string, killer: string, motive: string, voter = "player") =>
+  post<Record<string, any>>(`/game/vote/${sessionId}`, { killer, motive, voter });
+export const submitAgentVotes = (sessionId: string) =>
+  post<Record<string, any>>(`/game/vote/${sessionId}/agents`);
+export const broadcastMessage = (
+  sessionId: string,
+  msgType: string,
+  payload: object,
+  fromRole: string,
+) => post<Record<string, any>>(`/game/broadcast/${sessionId}`, undefined, {
+  msg_type: msgType,
+  payload: JSON.stringify(payload),
+  from_role: fromRole,
+});
+export const recordChatCount = (sessionId: string) => post<Record<string, any>>(`/game/chat-count/${sessionId}`);
+export const postGameReflection = (sessionId: string, result: object) =>
+  post<Record<string, any>>(`/game/reflect/${sessionId}`, result);
+export const revealGame = (sessionId: string, result: object) =>
+  post<Record<string, any>>(`/game/reveal/${sessionId}`, result);
+export const generateSpoiler = (sessionId: string, result: object) =>
+  post<Record<string, any>>(`/game/reveal/${sessionId}/spoiler`, result);
+export const getAgentState = (sessionId: string, agentKey: string) =>
+  get<Record<string, any>>(`/game/agent-state/${sessionId}/${agentKey}`);
+export const getAgentIntents = (sessionId: string, agentKey: string) =>
+  get<Record<string, any>>(`/game/intents/${sessionId}/${agentKey}`);
+export const generateAgentIntents = (sessionId: string, agentKey: string) =>
+  post<Record<string, any>>(`/game/intents/${sessionId}/${agentKey}/generate`);
+export const approveAgentIntent = (
+  sessionId: string,
+  agentKey: string,
+  intentType: string,
+  approved: boolean,
+) => post<Record<string, any>>(`/game/intents/${sessionId}/${agentKey}/approve`, {
+  intent_type: intentType,
+  approved,
+});
+export const recordAgentChat = (sessionId: string, agentKey: string, content: string, role = "player") =>
+  post<Record<string, any>>(`/game/agent-chat/${sessionId}`, {
+    session_id: sessionId,
+    agent_key: agentKey,
+    content,
+    role,
+  });
+export const playerChat = (sessionId: string, content: string, targetKey = "") =>
+  post<{ success: boolean; reply: string; agent_key: string }>(`/game/chat/${sessionId}`, {
+    content,
+    target_key: targetKey,
+  });
+export const sendPrivateChatMessage = (
+  sessionId: string,
+  fromKey: string,
+  toKey: string,
+  content: string,
+) =>
+  post<{ success: boolean; thread_id: string }>(`/game/private-chat/${sessionId}/send`, {
+    from_key: fromKey,
+    to_key: toKey,
+    content,
+  });
+
+// 角色私人剧本（替代前端硬编码 SCRIPT_CHAPTERS）
+export const getMyScript = (sessionId: string, characterName: string) =>
+  get<Record<string, any>>(`/game/my-script/${sessionId}`, { character_name: characterName });
+
+// 游戏状态快照（替代已回退的 /game/snapshot，支持刷新恢复）
+export const getGameSnapshot = (sessionId: string) =>
+  get<Record<string, any>>(`/game/snapshot/${sessionId}`);
+
+// 剧本证物池（替代前端硬编码 SEARCH_EVIDENCE / INITIAL_EVIDENCE）
+export const getEvidencePool = (scriptId: string) =>
+  get<Record<string, any>>(`/scripts/${scriptId}/evidence-pool`);
+
+export const getEvidences = async (
+  scriptId: string,
+  sessionId: string,
+  filters: { category?: string; discoveryState?: string; importance?: string } = {},
+) => get<{ success: boolean; evidences: EvidenceRecord[]; stats: Record<string, any> }>(
+  `/evidence/script/${scriptId}/session/${sessionId}`,
+  {
+    category: filters.category,
+    discovery_state: filters.discoveryState,
+    importance: filters.importance,
+  },
+);
+export const createEvidence = (data: Record<string, any>) => post<Record<string, any>>("/evidence/create", data);
+export const discoverEvidence = (data: {
+  scriptId: string;
+  sessionId: string;
+  scriptEvidenceId: string;
+  discoveredBy?: string;
+}) => post<{ success: boolean; evidence: EvidenceRecord; message: string }>("/evidence/discover", {
+  scriptId: data.scriptId,
+  sessionId: data.sessionId,
+  scriptEvidenceId: data.scriptEvidenceId,
+  discoveredBy: data.discoveredBy || "player",
+});
+export const updateEvidence = (evidenceId: string, data: Record<string, any>) =>
+  put<Record<string, any>>(`/evidence/${evidenceId}`, data);
+export interface EvidencePresentationResult {
+  success: boolean;
+  aiResponse: string;
+  reactionType: string;
+  newEvidencesUnlocked: string[];
+  informationUpdated: string[];
+  message: string;
+}
+
+export const presentEvidence = (
+  evidenceId: string,
+  presentedTo: string,
+  presentedBy: string,
+  textContent = "",
+  presentationContext = "",
+) => post<EvidencePresentationResult>("/evidence/present", {
+  evidenceId,
+  presentedTo,
+  presentedBy,
+  textContent,
+  presentationContext,
+});
+export const combineEvidences = (primaryEvidenceId: string, secondaryEvidenceId: string, attemptedBy: string) =>
+  post<Record<string, any>>("/evidence/combine", { primaryEvidenceId, secondaryEvidenceId, attemptedBy });
+export const getEvidencePresentations = (evidenceId: string) =>
+  get<Array<Record<string, any>>>(`/evidence/${evidenceId}/presentations`);
+export const getGameProgress = (sessionId: string) =>
+  get<Record<string, any>>(`/evidence/progress/${sessionId}`);
+export const updateProgressPhase = (sessionId: string, phase: string) =>
+  post<Record<string, any>>(`/evidence/progress/${sessionId}/phase`, { phase });
+export const deleteEvidence = (evidenceId: string) => remove<Record<string, any>>(`/evidence/${evidenceId}`);
+
+export const saveConversation = (data: {
+  sessionId: string;
+  actorName: string;
+  chatMessages?: LLMMessage[];
+  originalResponse?: string;
+  critiqueResponse?: string;
+  refinedResponse?: string;
+  finalResponse?: string;
+}) => post<Record<string, any>>("/conversations/save", {
+  session_id: data.sessionId,
+  actor_name: data.actorName,
+  chat_messages: data.chatMessages || [],
+  original_response: data.originalResponse || "",
+  critique_response: data.critiqueResponse || "",
+  refined_response: data.refinedResponse || "",
+  final_response: data.finalResponse || "",
+});
+export const getConversations = (sessionId: string, actorName?: string, limit = 100) =>
+  get<Record<string, any>>(`/conversations/session/${sessionId}`, { actor_name: actorName, limit });
+export const clearConversations = (sessionId: string) =>
+  remove<Record<string, any>>(`/conversations/session/${sessionId}`);
+
+export const saveSpoilerStory = (data: Record<string, any>) =>
+  post<Record<string, any>>("/spoiler-stories/save", data);
+export const listSpoilerStories = (scriptId: string) =>
+  get<Record<string, any>>(`/spoiler-stories/${scriptId}`);
+export const getSpoilerStory = (storyId: number) =>
+  get<Record<string, any>>(`/spoiler-stories/story/${storyId}`);
+export const updateSpoilerStory = (storyId: number, data: Record<string, any>) =>
+  put<Record<string, any>>(`/spoiler-stories/${storyId}`, data);
+export const deleteSpoilerStory = (storyId: number) =>
+  remove<Record<string, any>>(`/spoiler-stories/${storyId}`);
+export const batchDeleteSpoilerStories = (storyIds: number[]) =>
+  post<Record<string, any>>("/spoiler-stories/batch-delete", storyIds);
+
+// ============================
+// 用户画像与个人助手
+// ============================
+
+export interface UserProfile {
+  id: string;
+  display_name: string;
+  level: string;
+  avatar_url: string;
+  preferred_genres: string[];
+  preferred_difficulty: string;
+  preferred_duration: string;
+  tags: string[];
+  profile_data: Record<string, string>;
+  total_games: number;
+  total_hours: number;
+  completed_games: number;
+  favorite_agents: string[];
+}
+
+export const getUserProfile = (userId = "user_default") =>
+  get<{ success: boolean; profile: UserProfile }>(`/users/profile?user_id=${userId}`);
+
+export const updateUserProfile = (data: Record<string, any>, userId = "user_default") =>
+  post<Record<string, any>>(`/users/profile/update?user_id=${userId}`, data);
+
+export const assistantChat = (message: string, userId = "user_default") =>
+  post<{ reply: string }>(`/users/assistant/chat?user_id=${userId}`, { message });
+
+export const getAssistantHistory = (userId = "user_default") =>
+  get<{ success: boolean; history: Array<{ role: string; content: string }> }>(`/users/assistant/history?user_id=${userId}`);
+
+export function createSafeActorList(actors: Actor[]): SafeActor[] {
+  return actors.map(({ secret: _secret, violation: _violation, backgroundImage: _background, ...actor }) => actor);
+}
