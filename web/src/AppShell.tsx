@@ -73,7 +73,7 @@ function AppShell() {
             <SessionProvider>
               <MysteryProvider>
                 <Routes>
-                  <Route path="/" element={<SplashPage />} />
+                  <Route path="/" element={<MockShowcaseEntry />} />
                   <Route path="/mock" element={<MockShowcaseEntry />} />
                   <Route path="/library" element={<ScriptLibrary />} />
                   <Route path="/scripts" element={<ScriptLibrary />} />

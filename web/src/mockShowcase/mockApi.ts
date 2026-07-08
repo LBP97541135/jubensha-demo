@@ -25,6 +25,14 @@ const script: BackendScript = {
   difficulty: "进阶",
   player_count: 6,
   duration_minutes: 120,
+  cover_image: new URL("../video_picture/首帧画面.png", import.meta.url).href,
+  coverImage: new URL("../video_picture/首帧画面.png", import.meta.url).href,
+  rating: 4.8,
+  hot: true,
+  recommended: true,
+  newArrival: true,
+  friendsPlayed: false,
+  tags: ["旧案", "时间线", "门禁记录", "六人本"],
   emotion_level: 3,
   inference_level: 5,
   horror_level: 1,
@@ -269,7 +277,9 @@ export function isMockShowcaseMode() {
   const flag = window.localStorage.getItem("mock-showcase") === "true";
   const env = String(import.meta.env.VITE_MOCK_SHOWCASE ?? "").toLowerCase() === "true";
   const hash = window.location.hash.startsWith("#/mock");
-  return flag || env || hash;
+  const githubPages = window.location.hostname.endsWith("github.io");
+  const demoRepo = window.location.pathname.includes("jubensha-demo");
+  return flag || env || hash || githubPages || demoRepo;
 }
 
 export async function mockApiRequest<T>(method: Method, rawPath: string, body?: any): Promise<T> {
