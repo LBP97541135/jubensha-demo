@@ -257,7 +257,7 @@ export function AgentCastingPanel({
               <Text className="monospace-label" size="xs" c="dimmed">role casting table</Text>
               <Title order={3}>剧本角色圆桌</Title>
               <Text size="xs" c="dimmed" mt={4}>
-                锈铁为 6 人本：5 名在席嫌疑人 + 受害者顾沉（由 DM 叙述，不占席位）
+                锈铁为 6 人本：6 名在席角色，顾沉也是可扮演与可投票的嫌疑人。
               </Text>
             </Box>
             <Badge color="red" variant="light">{playerCount} 个角色席位</Badge>
@@ -309,7 +309,7 @@ export function AgentCastingPanel({
           </Text>
           {selectableAgents.length < playerCount && (
             <Text size="sm" c="orange">
-              当前仅有 {selectableAgents.length} 个可用陪玩 Agent，本剧本建议至少 {playerCount} 个（全 AI）或 {Math.max(playerCount - 1, 0)} 个（你扮演 1 席）。
+              当前有 {selectableAgents.length} 个可用陪玩 Agent，可覆盖本局 {playerCount} 个角色席位。
             </Text>
           )}
           <Paper radius="lg" p="md" w="100%" className="tone-panel">

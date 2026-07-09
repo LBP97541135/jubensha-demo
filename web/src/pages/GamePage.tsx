@@ -608,18 +608,16 @@ function GamePage() {
 
   // BGM 控制
   React.useEffect(() => {
-    if (!bgmRef.current) {
-      const audio = new Audio(bgmUrl);
-      audio.loop = true;
-      audio.volume = bgmVolume;
-      bgmRef.current = audio;
-    }
+    const audio = bgmRef.current;
+    if (!audio) return;
+    audio.loop = true;
+    audio.volume = bgmVolume;
     if (bgmPlaying) {
-      bgmRef.current.play().catch(() => setBgmPlaying(false));
+      audio.play().catch(() => setBgmPlaying(false));
     } else {
-      bgmRef.current.pause();
+      audio.pause();
     }
-  }, [bgmPlaying]);
+  }, [bgmPlaying, bgmVolume]);
 
   React.useEffect(() => {
     if (bgmRef.current) bgmRef.current.volume = bgmVolume;
@@ -2540,10 +2538,24 @@ function GamePage() {
                   {voteableSuspects.map((player) => (
                     <Paper
                       key={player.id}
-                      component="label"
+                      component="button"
                       radius="lg"
                       p="sm"
                       className={voteSuspect === player.role ? "game-suspect-option is-selected" : "game-suspect-option"}
+                      type="button"
+                      aria-label={`投票选择 ${player.role}`}
+                      aria-pressed={voteSuspect === player.role}
+                      data-testid={`vote-suspect-${player.role}`}
+                    
+                      onClick={() => setVoteSuspect(player.role)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter" || event.key === " ") {
+                          event.preventDefault();
+                          setVoteSuspect(player.role);
+                        }
+                      }}
+                      role="button"
+                      tabIndex={0}
                     >
                       <Group wrap="nowrap">
                         {(() => { const portrait = player.agent ? getAgentPortrait(player.name) : getRolePortrait(player.role); return portrait ? <Avatar src={portrait} size={40} radius="xl" imageProps={{ style: { objectPosition: "top" } }} /> : <Avatar color={player.color}>{player.role.slice(0, 1)}</Avatar>; })()}
@@ -2966,6 +2978,7 @@ function GamePage() {
 
   return (
     <StudioShell title="游戏主界面" subtitle={`当前剧本：${scriptTitle}。`} eyebrow="live game / interactive demo" stats={[{ label: "当前阶段", value: phase.shortLabel }, { label: "当前发言人", value: current?.name || "暂无" }, { label: "发言倒计时", value: formatTime(speakerSeconds) }, { label: "游戏模式", value: gameMode }]}>
+      <audio ref={bgmRef} src={bgmUrl} preload="auto" loop aria-label="剧本杀 BGM" />
       <Box className="game-stage-wrap">
         <Paper ref={fullscreenRef} radius={fullscreen ? 0 : "xl"} className={fullscreen ? "game-workspace is-fullscreen" : "game-workspace"}>
           <LocalModeBanner />

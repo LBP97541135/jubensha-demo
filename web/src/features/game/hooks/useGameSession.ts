@@ -76,7 +76,7 @@ export function useGameSession(sessionId: string): UseGameSessionReturn {
       setState((prev) => ({
         ...prev,
         scriptId: session.script_id || "",
-        scriptTitle: session.title || "",
+        scriptTitle: session.title || session.script_title || "",
         currentPhase: phase.phase || "setup",
         casts: castingResult.casts || [],
         evidences: evidencesResult.evidences || [],
