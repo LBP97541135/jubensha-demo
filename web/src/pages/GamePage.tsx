@@ -101,7 +101,7 @@ const characterPortraits: Record<string, string> = {
 };
 
 const agentPortraits: Record<string, string> = {
-  "白鸦": new URL("../video_picture/白鸽.png", import.meta.url).href,
+  "白鸽": new URL("../video_picture/白鸽.png", import.meta.url).href,
   "回声": new URL("../video_picture/回声.png", import.meta.url).href,
   "纸鸮": new URL("../video_picture/纸鸮.png", import.meta.url).href,
   "燧石": new URL("../video_picture/燧石.png", import.meta.url).href,
@@ -764,6 +764,7 @@ function GamePage() {
   const voteableSuspects = dynamicPlayers.filter((player) => {
     if (player.id === "user" || player.id === "dm" || player.role === "侦探") return false;
     const ch = scriptCharByRole(player.role);
+    if (isMockShowcaseMode()) return true;
     return player.role !== "顾沉" && !ch?.isVictim;
   });
   const firstAgentPlayerId = agents[0]?.id || "";
@@ -1143,19 +1144,20 @@ function GamePage() {
   };
 
   const goToPhase = async (index: number) => {
+    const mockShowcase = isMockShowcaseMode();
     if (streaming?.active) {
       showFeedback("AI 正在发言，请稍候再切换阶段。");
       return;
     }
-    if (phase.id === "role-selection" && index > 0 && !roleConfirmed) {
+    if (!mockShowcase && phase.id === "role-selection" && index > 0 && !roleConfirmed) {
       showFeedback("请先确认角色，选角完成后才能进入后续阶段。");
       return;
     }
-    if (index === 0 && roleConfirmed) {
+    if (!mockShowcase && index === 0 && roleConfirmed) {
       showFeedback("角色已确认，选角阶段不可再次进入。");
       return;
     }
-    if (index > phaseIndex + 1) {
+    if (!mockShowcase && index > phaseIndex + 1) {
       showFeedback("请先完成当前阶段，不能跳过尚未完成的流程。");
       return;
     }
@@ -1950,6 +1952,16 @@ function GamePage() {
     killer_confession: scriptRevealText || "本地模式真相：外部模型未启用，真相叙述使用剧本内置文本兜底。",
     truth: scriptRevealText || "本地模式真相：请以剧本静态真相、已发现证物和投票记录完成复盘。",
   });
+
+  React.useEffect(() => {
+    if (!isMockShowcaseMode() || phase.id !== "reveal" || revealData) return;
+    const accused = voteSuspect || "顾沉";
+    const localReveal = buildLocalRevealData(accused, accused === "顾沉" || accused === "椤炬矇");
+    setRevealData(localReveal);
+    if (sessionId) {
+      sessionsApi.saveState(sessionId, { reveal_data: localReveal }).catch(() => {});
+    }
+  }, [phase.id, revealData, voteSuspect, sessionId]);
 
   const submitVote = async () => {
     if (!voteSuspect || !voteReason.trim() || voteEvidence.length === 0) {

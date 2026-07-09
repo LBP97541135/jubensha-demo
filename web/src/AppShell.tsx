@@ -75,6 +75,7 @@ function AppShell() {
                 <Routes>
                   <Route path="/" element={<MockShowcaseEntry />} />
                   <Route path="/mock" element={<MockShowcaseEntry />} />
+                  <Route path="/mock/game" element={<ScriptLibrary />} />
                   <Route path="/library" element={<ScriptLibrary />} />
                   <Route path="/scripts" element={<ScriptLibrary />} />
                   <Route path="/library/:id" element={<ScriptDetailPage />} />
